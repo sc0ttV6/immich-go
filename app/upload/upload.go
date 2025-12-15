@@ -81,14 +81,20 @@ type UpCmd struct {
 	finished          bool                                 // the finish task has been run
 	infoCollector     *filenames.InfoCollector             // Collects information about the files being processed
 	uiPublisher       messages.Publisher
+	uiSink            *uiSink // UI sink for file events
 	uiRunnerCancel    context.CancelFunc
 	uiStats           state.RunStats
 	uiStatsMu         sync.Mutex
+	uiStatsPrevBytes  int64
+	uiStatsPrevSample time.Time
 	uiStatsCountersMu sync.Mutex
 	uiStatsCounters   assettracker.AssetCounters
 	uiStatsDirty      bool
 	uiStatsCancel     context.CancelFunc
 	uiJobsCancel      context.CancelFunc
+	uiInventoryCancel context.CancelFunc
+	uiRunnerDone      chan struct{}
+	uiWaitForUser     bool
 	uiStream          messages.Stream
 }
 
@@ -176,7 +182,7 @@ func (uc *UpCmd) Run(cmd *cobra.Command, adapter adapters.Reader) error {
 	}
 
 	uc.initUIPipeline(ctx)
-	defer uc.shutdownUIPipeline()
+	defer uc.shutdownUIPipeline(ctx)
 
 	if uc.ManageEpsonFastFoto {
 		g := epsonfastfoto.Group{}

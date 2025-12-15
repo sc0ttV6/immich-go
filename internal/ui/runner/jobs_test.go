@@ -127,12 +127,13 @@ type testPublisher struct {
 	jobs [][]state.JobSummary
 }
 
-func (p *testPublisher) AssetQueued(context.Context, state.AssetEvent)   {}
-func (p *testPublisher) AssetUploaded(context.Context, state.AssetEvent) {}
-func (p *testPublisher) AssetFailed(context.Context, state.AssetEvent)   {}
-func (p *testPublisher) UpdateStats(context.Context, state.RunStats)     {}
-func (p *testPublisher) AppendLog(context.Context, state.LogEvent)       {}
-func (p *testPublisher) Close()                                          {}
+func (p *testPublisher) AssetQueued(context.Context, state.AssetEvent)          {}
+func (p *testPublisher) AssetUploaded(context.Context, state.AssetEvent)        {}
+func (p *testPublisher) AssetFailed(context.Context, state.AssetEvent)          {}
+func (p *testPublisher) UpdateStats(context.Context, state.RunStats)            {}
+func (p *testPublisher) AppendLog(context.Context, state.LogEvent)              {}
+func (p *testPublisher) UpdateInventory(context.Context, state.ServerInventory) {}
+func (p *testPublisher) Close()                                                 {}
 
 func (p *testPublisher) UpdateJobs(_ context.Context, jobs []state.JobSummary) {
 	p.mu.Lock()

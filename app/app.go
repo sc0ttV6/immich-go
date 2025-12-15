@@ -25,17 +25,18 @@ import (
 
 type Application struct {
 	// CLI flags
-	DryRun             bool
-	OnErrors           cliflags.OnErrorsFlag
-	SaveConfig         bool
-	ConcurrentTask     int
-	CfgFile            string
-	UIMode             runner.Mode
-	UIExperimental     bool
-	UILegacy           bool
-	UIEventBuffer      int
-	UIJobsPollInterval time.Duration
-	UIDumpEvents       bool
+	DryRun                  bool
+	OnErrors                cliflags.OnErrorsFlag
+	SaveConfig              bool
+	ConcurrentTask          int
+	CfgFile                 string
+	UIMode                  runner.Mode
+	UIExperimental          bool
+	UILegacy                bool
+	UIEventBuffer           int
+	UIJobsPollInterval      time.Duration
+	UIInventoryPollInterval time.Duration
+	UIDumpEvents            bool
 
 	// Internal state
 	log       *Log
@@ -66,12 +67,13 @@ func (app *Application) RegisterFlags(flags *pflag.FlagSet) {
 func New(ctx context.Context, cmd *cobra.Command) *Application {
 	// application's context
 	a := &Application{
-		log:                &Log{},
-		tz:                 time.Local,
-		Config:             config.New(),
-		UIMode:             runner.ModeAuto,
-		UIEventBuffer:      256,
-		UIJobsPollInterval: 250 * time.Millisecond,
+		log:                     &Log{},
+		tz:                      time.Local,
+		Config:                  config.New(),
+		UIMode:                  runner.ModeAuto,
+		UIEventBuffer:           256,
+		UIJobsPollInterval:      250 * time.Millisecond,
+		UIInventoryPollInterval: 2 * time.Second,
 	}
 	return a
 }

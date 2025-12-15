@@ -4,12 +4,13 @@ package messages
 type EventType string
 
 const (
-	EventAssetQueued   EventType = "asset_queued"
-	EventAssetUploaded EventType = "asset_uploaded"
-	EventAssetFailed   EventType = "asset_failed"
-	EventLogLine       EventType = "log_line"
-	EventStatsUpdated  EventType = "stats_updated"
-	EventJobsUpdated   EventType = "jobs_updated"
+	EventAssetQueued      EventType = "asset_queued"
+	EventAssetUploaded    EventType = "asset_uploaded"
+	EventAssetFailed      EventType = "asset_failed"
+	EventLogLine          EventType = "log_line"
+	EventStatsUpdated     EventType = "stats_updated"
+	EventJobsUpdated      EventType = "jobs_updated"
+	EventInventoryUpdated EventType = "inventory_updated"
 )
 
 // Event is a renderer-agnostic payload consumed by UI shells.

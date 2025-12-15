@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/simulot/immich-go/internal/assets"
@@ -23,9 +24,17 @@ func (uc *UpCmd) initUIPipeline(ctx context.Context) {
 		uc.uiPublisher = messages.NoopPublisher{}
 	}
 
+	now := time.Now()
 	uc.uiStatsMu.Lock()
-	uc.uiStats = state.RunStats{StartedAt: time.Now()}
-	statsSnapshot := uc.uiStats
+	uc.uiStats = state.RunStats{
+		StartedAt:   now,
+		Stage:       state.StageRunning,
+		Workers:     uc.app.ConcurrentTask,
+		LastUpdated: now,
+	}
+	uc.uiStatsPrevBytes = 0
+	uc.uiStatsPrevSample = now
+	statsSnapshot := state.CloneRunStats(uc.uiStats)
 	uc.uiStatsMu.Unlock()
 	uc.uiPublisher.UpdateStats(ctx, statsSnapshot)
 
@@ -41,9 +50,12 @@ func (uc *UpCmd) initUIPipeline(ctx context.Context) {
 	uc.uiPublisher = publisher
 	uc.uiPublisher.UpdateStats(ctx, uc.snapshotStats())
 
+	// Set up slog handler to forward logs to UI
+	uc.setupUILogHandler(ctx)
+
 	uiCtx, cancel := context.WithCancel(ctx)
 	uc.uiRunnerCancel = cancel
-	legacyStreamNeeded := !uc.NoUI
+	legacyStreamNeeded := !uc.NoUI && (!uc.app.UIExperimental || uc.app.UILegacy)
 	var sinks []chan messages.Event
 	var dumpStream chan messages.Event
 	if legacyStreamNeeded {
@@ -80,34 +92,79 @@ func (uc *UpCmd) initUIPipeline(ctx context.Context) {
 		uc.flushStatsFromCounters(ctx)
 	}
 	uc.startJobsWatcher(uiCtx)
+	uc.startInventoryWatcher(uiCtx)
 
 	if runnerStream != nil {
-		go func() {
+		uc.uiWaitForUser = uc.app.UIExperimental && !uc.NoUI
+		uc.uiRunnerDone = make(chan struct{})
+		go func(done chan struct{}) {
+			defer close(done)
 			cfg := runner.Config{
 				Mode:          uc.app.UIMode,
 				Experimental:  uc.app.UIExperimental,
 				LegacyEnabled: uc.app.UILegacy,
+				ServerURL:     uc.client.Server,
+				UserEmail:     uc.client.User.Email,
 			}
 			if err := runner.Run(uiCtx, cfg, runnerStream); err != nil && !errors.Is(err, runner.ErrNoShellSelected) && !errors.Is(err, context.Canceled) {
 				uc.app.Log().Debug("ui runner exited", "err", err)
 			}
-		}()
+		}(uc.uiRunnerDone)
 	}
 }
 
-func (uc *UpCmd) shutdownUIPipeline() {
+func (uc *UpCmd) setupUILogHandler(ctx context.Context) {
+	// Register UI sink with FileProcessor to capture file events
+	if processor := uc.app.FileProcessor(); processor != nil {
+		uc.uiSink = newUISink(ctx, uc.uiPublisher)
+		processor.Logger().RegisterSink(uc.uiSink)
+	}
+
+	// Also capture general app logs via the old writer approach
+	// (Could be migrated to sink pattern later if needed)
+	if uc.app.Log() != nil && uc.app.Log().Logger != nil {
+		logWriter := &uiLogWriter{
+			ctx:       ctx,
+			publisher: uc.uiPublisher,
+		}
+		uc.app.Log().SetLogWriter(logWriter)
+	}
+}
+
+func (uc *UpCmd) cleanupUILogHandler() {
+	// Unregister UI sink
+	if processor := uc.app.FileProcessor(); processor != nil && uc.uiSink != nil {
+		processor.Logger().UnregisterSink(uc.uiSink)
+		uc.uiSink = nil
+	}
+
+	// Clean up the main logger writer
+	if uc.app.Log() != nil {
+		uc.app.Log().SetLogWriter(nil)
+	}
+}
+
+func (uc *UpCmd) shutdownUIPipeline(ctx context.Context) {
 	if processor := uc.app.FileProcessor(); processor != nil {
 		processor.SetCountersHook(nil)
 		processor.SetEventHook(nil)
 	}
 	uc.stopStatsAggregator()
 	uc.stopJobsWatcher()
+	uc.stopInventoryWatcher()
+	uc.cleanupUILogHandler()
 	if uc.uiPublisher != nil {
 		uc.uiPublisher.Close()
 	}
 	if uc.uiRunnerCancel != nil {
-		uc.uiRunnerCancel()
+		if !uc.uiWaitForUser || ctx == nil || ctx.Err() != nil {
+			uc.uiRunnerCancel()
+		}
 		uc.uiRunnerCancel = nil
+	}
+	if uc.uiRunnerDone != nil {
+		<-uc.uiRunnerDone
+		uc.uiRunnerDone = nil
 	}
 	uc.uiStream = nil
 }
@@ -199,7 +256,7 @@ func (uc *UpCmd) publishLog(ctx context.Context, level, message string, details 
 func (uc *UpCmd) snapshotStats() state.RunStats {
 	uc.uiStatsMu.Lock()
 	defer uc.uiStatsMu.Unlock()
-	return uc.uiStats
+	return state.CloneRunStats(uc.uiStats)
 }
 
 func (uc *UpCmd) updateStats(ctx context.Context, mutate func(*state.RunStats)) {
@@ -208,8 +265,14 @@ func (uc *UpCmd) updateStats(ctx context.Context, mutate func(*state.RunStats)) 
 	}
 	uc.uiStatsMu.Lock()
 	mutate(&uc.uiStats)
+	now := time.Now()
+	if uc.uiStats.Stage == "" {
+		uc.uiStats.Stage = state.StageRunning
+	}
 	uc.uiStats.HasErrors = (uc.uiStats.Failed > 0) || (uc.uiStats.ErrorCount > 0)
-	snapshot := uc.uiStats
+	uc.uiStats.LastUpdated = now
+	uc.updateThroughputLocked(now)
+	snapshot := state.CloneRunStats(uc.uiStats)
 	uc.uiStatsMu.Unlock()
 	uc.uiPublisher.UpdateStats(ctx, snapshot)
 }
@@ -226,10 +289,44 @@ func (uc *UpCmd) applyCountersSnapshot(ctx context.Context, counters assettracke
 		stats.ErrorBytes = counters.ErrorSize
 		stats.TotalDiscovered = int(counters.Total())
 		stats.TotalDiscoveredBytes = counters.AssetSize
+		stats.InFlight = stats.Pending
 	})
 }
 
-const statsAggregationInterval = 200 * time.Millisecond
+const (
+	statsAggregationInterval    = 200 * time.Millisecond
+	throughputSampleMinInterval = 200 * time.Millisecond
+	maxThroughputSamples        = 64
+)
+
+func (uc *UpCmd) updateThroughputLocked(now time.Time) {
+	if uc.uiStatsPrevSample.IsZero() {
+		uc.uiStatsPrevSample = now
+	}
+	deltaBytes := uc.uiStats.BytesSent - uc.uiStatsPrevBytes
+	if deltaBytes <= 0 {
+		return
+	}
+	interval := now.Sub(uc.uiStatsPrevSample)
+	if interval < throughputSampleMinInterval {
+		return
+	}
+	if interval <= 0 {
+		interval = throughputSampleMinInterval
+	}
+	bytesPerSecond := float64(deltaBytes) / interval.Seconds()
+	sample := state.ThroughputSample{
+		Timestamp:      now,
+		BytesPerSecond: bytesPerSecond,
+	}
+	uc.uiStats.ThroughputSamples = append(uc.uiStats.ThroughputSamples, sample)
+	if len(uc.uiStats.ThroughputSamples) > maxThroughputSamples {
+		start := len(uc.uiStats.ThroughputSamples) - maxThroughputSamples
+		uc.uiStats.ThroughputSamples = append([]state.ThroughputSample(nil), uc.uiStats.ThroughputSamples[start:]...)
+	}
+	uc.uiStatsPrevSample = now
+	uc.uiStatsPrevBytes = uc.uiStats.BytesSent
+}
 
 func (uc *UpCmd) recordCountersSnapshot(counters assettracker.AssetCounters) {
 	uc.uiStatsCountersMu.Lock()
@@ -293,6 +390,30 @@ func (uc *UpCmd) stopJobsWatcher() {
 	if uc.uiJobsCancel != nil {
 		uc.uiJobsCancel()
 		uc.uiJobsCancel = nil
+	}
+}
+
+func (uc *UpCmd) startInventoryWatcher(ctx context.Context) {
+	uc.stopInventoryWatcher()
+	if uc.client.Immich == nil || uc.uiPublisher == nil {
+		return
+	}
+	interval := uc.app.UIInventoryPollInterval
+	cfg := runner.InventoryWatcherConfig{
+		Client:    uc.client.Immich,
+		Publisher: uc.uiPublisher,
+		Interval:  interval,
+	}
+	if log := uc.app.Log(); log != nil {
+		cfg.Logger = log.Logger
+	}
+	uc.uiInventoryCancel = runner.StartInventoryWatcher(ctx, cfg)
+}
+
+func (uc *UpCmd) stopInventoryWatcher() {
+	if uc.uiInventoryCancel != nil {
+		uc.uiInventoryCancel()
+		uc.uiInventoryCancel = nil
 	}
 }
 
@@ -420,4 +541,51 @@ func summarizeEventPayload(payload any) string {
 	default:
 		return fmt.Sprintf("payload=%T", payload)
 	}
+}
+
+// uiLogWriter implements io.Writer to forward slog output to UI events
+type uiLogWriter struct {
+	ctx       context.Context
+	publisher messages.Publisher
+}
+
+func (w *uiLogWriter) Write(p []byte) (n int, err error) {
+	if w.publisher == nil {
+		return len(p), nil
+	}
+	// Parse the log line - format is typically: "YYYY-MM-DD HH:MM:SS LEVEL message"
+	line := strings.TrimSpace(string(p))
+	if line == "" {
+		return len(p), nil
+	}
+
+	// Extract level and message
+	parts := strings.SplitN(line, " ", 4)
+	level := "info"
+	message := line
+
+	if len(parts) >= 4 {
+		// Format: "DATE TIME LEVEL message"
+		levelStr := strings.ToLower(strings.TrimSpace(parts[2]))
+		switch {
+		case strings.HasPrefix(levelStr, "err"):
+			level = "error"
+		case strings.HasPrefix(levelStr, "warn"):
+			level = "warn"
+		case strings.HasPrefix(levelStr, "info"):
+			level = "info"
+		case strings.HasPrefix(levelStr, "debug"):
+			level = "debug"
+		}
+		message = parts[3]
+	}
+
+	w.publisher.AppendLog(w.ctx, state.LogEvent{
+		Level:     level,
+		Message:   message,
+		Timestamp: time.Now(),
+		Details:   nil,
+	})
+
+	return len(p), nil
 }

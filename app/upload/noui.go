@@ -23,6 +23,7 @@ func (uc *UpCmd) runNoUI(ctx context.Context, app *app.Application) error {
 	var preparationDone atomic.Bool
 
 	stopProgress := make(chan any)
+	showProgress := !app.UIExperimental
 	var maxImmich, currImmich int
 	spinner := []rune{' ', ' ', '.', ' ', ' '}
 	spinIdx := 0
@@ -54,25 +55,27 @@ func (uc *UpCmd) runNoUI(ctx context.Context, app *app.Application) error {
 	}
 	uiGrp := errgroup.Group{}
 
-	uiGrp.Go(func() error {
-		ticker := time.NewTicker(500 * time.Millisecond)
-		defer func() {
-			ticker.Stop()
-			fmt.Println(progressString())
-		}()
-		for {
-			select {
-			case <-stopProgress:
-				fmt.Print(progressString())
-				return nil
-			case <-ctx.Done():
-				fmt.Print(progressString())
-				return ctx.Err()
-			case <-ticker.C:
-				fmt.Print(progressString())
+	if showProgress {
+		uiGrp.Go(func() error {
+			ticker := time.NewTicker(500 * time.Millisecond)
+			defer func() {
+				ticker.Stop()
+				fmt.Println(progressString())
+			}()
+			for {
+				select {
+				case <-stopProgress:
+					fmt.Print(progressString())
+					return nil
+				case <-ctx.Done():
+					fmt.Print(progressString())
+					return ctx.Err()
+				case <-ticker.C:
+					fmt.Print(progressString())
+				}
 			}
-		}
-	})
+		})
+	}
 
 	uiGrp.Go(func() error {
 		processGrp := errgroup.Group{}

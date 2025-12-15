@@ -27,6 +27,8 @@ type Config struct {
 	Mode          Mode
 	Experimental  bool
 	LegacyEnabled bool
+	ServerURL     string
+	UserEmail     string
 }
 
 // ErrShellUnavailable is returned when the requested UI shell is not compiled in.
@@ -43,7 +45,10 @@ func Run(ctx context.Context, cfg Config, stream messages.Stream) error {
 	}
 
 	if cfg.Mode == ModeAuto || cfg.Mode == ModeTerminal || cfg.Mode == "" {
-		if err := terminal.Run(ctx, terminal.DefaultConfig(), stream); err == nil {
+		termCfg := terminal.DefaultConfig()
+		termCfg.ServerURL = cfg.ServerURL
+		termCfg.UserEmail = cfg.UserEmail
+		if err := terminal.Run(ctx, termCfg, stream); err == nil {
 			return nil
 		} else if !errors.Is(err, terminal.ErrUnavailable) {
 			return err

@@ -35,7 +35,7 @@ func (m *MemPublisher) AssetFailed(_ context.Context, event state.AssetEvent) {
 }
 
 func (m *MemPublisher) UpdateStats(_ context.Context, stats state.RunStats) {
-	m.append(messages.Event{Type: messages.EventStatsUpdated, Payload: stats})
+	m.append(messages.Event{Type: messages.EventStatsUpdated, Payload: state.CloneRunStats(stats)})
 }
 
 func (m *MemPublisher) AppendLog(_ context.Context, entry state.LogEvent) {
@@ -46,6 +46,10 @@ func (m *MemPublisher) UpdateJobs(_ context.Context, jobs []state.JobSummary) {
 	jobsCopy := make([]state.JobSummary, len(jobs))
 	copy(jobsCopy, jobs)
 	m.append(messages.Event{Type: messages.EventJobsUpdated, Payload: jobsCopy})
+}
+
+func (m *MemPublisher) UpdateInventory(_ context.Context, inv state.ServerInventory) {
+	m.append(messages.Event{Type: messages.EventInventoryUpdated, Payload: inv})
 }
 
 func (m *MemPublisher) Close() {}

@@ -32,7 +32,7 @@ Each journey feeds into acceptance criteria for UX mockups and component checkli
 - Config flags to emit debug snapshots for test automation.
 
 ### 6. Documentation & Assets
-- Produce lightweight wireframes per screen stored in `scratchpad/ui/`.
+- Produce lightweight wireframes per screen stored in `internal/ui/specifications/ui/`.
 - Update `docs/commands/*` with screenshots and shortcut tables once stable.
 
 ### 7. Multi-Interface Strategy

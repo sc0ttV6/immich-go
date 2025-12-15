@@ -2,6 +2,24 @@ package state
 
 import "time"
 
+// RunStage indicates the current phase of the CLI session.
+type RunStage string
+
+const (
+	StageUnknown   RunStage = "unknown"
+	StagePending   RunStage = "pending"
+	StageRunning   RunStage = "running"
+	StagePaused    RunStage = "paused"
+	StageCompleted RunStage = "completed"
+	StageFailed    RunStage = "failed"
+)
+
+// ThroughputSample captures the computed upload throughput at a point in time.
+type ThroughputSample struct {
+	Timestamp      time.Time
+	BytesPerSecond float64
+}
+
 // AssetRef identifies an asset being processed.
 type AssetRef struct {
 	ID   string
@@ -47,6 +65,14 @@ type RunStats struct {
 	ErrorBytes           int64
 	TotalDiscovered      int
 	TotalDiscoveredBytes int64
+	Retries              int
+	Workers              int
+	InFlight             int
+	UploadPaused         bool
+	Stage                RunStage
+	ETA                  time.Duration
+	ThroughputSamples    []ThroughputSample
+	LastUpdated          time.Time
 	HasErrors            bool
 	StartedAt            time.Time
 }
@@ -71,12 +97,31 @@ type LogEvent struct {
 	Details   map[string]string
 }
 
+// ServerInventory captures Immich library statistics for the authenticated user.
+type ServerInventory struct {
+	Photos    int
+	Videos    int
+	Total     int
+	UpdatedAt time.Time
+	Latency   time.Duration
+}
+
 // NewRunStats returns a zeroed RunStats with the provided start time.
 func NewRunStats(start time.Time) RunStats {
-	return RunStats{StartedAt: start}
+	return RunStats{StartedAt: start, Stage: StageRunning}
 }
 
 // NewJobSummary returns an empty JobSummary for the provided job name.
 func NewJobSummary(name string) JobSummary {
 	return JobSummary{Name: name, Kind: name}
+}
+
+// CloneRunStats deep copies slices inside RunStats to avoid sharing mutable backing arrays across goroutines.
+func CloneRunStats(stats RunStats) RunStats {
+	if len(stats.ThroughputSamples) > 0 {
+		samples := make([]ThroughputSample, len(stats.ThroughputSamples))
+		copy(samples, stats.ThroughputSamples)
+		stats.ThroughputSamples = samples
+	}
+	return stats
 }

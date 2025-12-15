@@ -15,6 +15,7 @@ import (
 	"github.com/simulot/immich-go/internal/fileevent"
 	"github.com/simulot/immich-go/internal/filters"
 	"github.com/simulot/immich-go/internal/fshelper"
+	"github.com/simulot/immich-go/internal/ui/core/state"
 	"github.com/simulot/immich-go/internal/worker"
 )
 
@@ -114,14 +115,22 @@ func (uc *UpCmd) finishing(ctx context.Context) error {
 	if uc.app.FileProcessor() != nil {
 		report := uc.app.FileProcessor().GenerateReport()
 		if len(report) > 0 {
-			lines := strings.Split(report, "\n")
-			for _, s := range lines {
-				uc.app.Log().Info(s)
+			if uc.app.UIExperimental {
+				uc.app.Log().Debug("asset tracking report", "report", strings.ReplaceAll(report, "\n", " | "))
+			} else {
+				lines := strings.Split(report, "\n")
+				for _, s := range lines {
+					uc.app.Log().Info(s)
+				}
 			}
 		}
 	}
 
-	uc.uiPublisher.UpdateStats(ctx, uc.snapshotStats())
+	uc.updateStats(ctx, func(stats *state.RunStats) {
+		stats.Stage = state.StageCompleted
+		stats.UploadPaused = false
+		stats.InFlight = 0
+	})
 
 	return nil
 }
@@ -141,7 +150,12 @@ func (uc *UpCmd) upload(ctx context.Context, adapter adapters.Reader) error {
 	defer func() { _ = uc.finishing(ctx) }()
 	defer func() {
 		if uc.app.FileProcessor() != nil {
-			fmt.Println(uc.app.FileProcessor().GenerateReport())
+			report := uc.app.FileProcessor().GenerateReport()
+			if uc.app.UIExperimental {
+				uc.app.Log().Info("asset tracking report", "report", strings.ReplaceAll(report, "\n", " | "))
+			} else {
+				fmt.Println(report)
+			}
 		}
 	}()
 	uc.albumsCache = cache.NewCollectionCache(50, func(album assets.Album, ids []string) (assets.Album, error) {
@@ -155,10 +169,14 @@ func (uc *UpCmd) upload(ctx context.Context, adapter adapters.Reader) error {
 
 	runner := uc.runUI
 	uc.assetIndex = newAssetIndex()
+	useLegacyUI := !uc.app.UIExperimental || uc.app.UILegacy
 
-	if uc.NoUI {
+	switch {
+	case uc.NoUI:
 		runner = uc.runNoUI
-	} else {
+	case !useLegacyUI:
+		runner = uc.runNoUI
+	default:
 		_, err := tcell.NewScreen()
 		if err != nil {
 			uc.app.Log().Warn("can't initialize the screen for the UI mode. Falling back to no-gui mode", "err", err)

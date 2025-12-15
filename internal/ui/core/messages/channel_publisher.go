@@ -41,7 +41,7 @@ func (p *ChannelPublisher) AssetFailed(ctx context.Context, event state.AssetEve
 
 // UpdateStats implements Publisher.
 func (p *ChannelPublisher) UpdateStats(ctx context.Context, stats state.RunStats) {
-	p.send(ctx, Event{Type: EventStatsUpdated, Payload: stats})
+	p.send(ctx, Event{Type: EventStatsUpdated, Payload: state.CloneRunStats(stats)})
 }
 
 // AppendLog implements Publisher.
@@ -54,6 +54,11 @@ func (p *ChannelPublisher) UpdateJobs(ctx context.Context, jobs []state.JobSumma
 	copyJobs := make([]state.JobSummary, len(jobs))
 	copy(copyJobs, jobs)
 	p.send(ctx, Event{Type: EventJobsUpdated, Payload: copyJobs})
+}
+
+// UpdateInventory implements Publisher.
+func (p *ChannelPublisher) UpdateInventory(ctx context.Context, inv state.ServerInventory) {
+	p.send(ctx, Event{Type: EventInventoryUpdated, Payload: inv})
 }
 
 // Close closes the underlying channel so consumers may exit.

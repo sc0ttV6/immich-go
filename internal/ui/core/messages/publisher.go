@@ -14,6 +14,7 @@ type Publisher interface {
 	UpdateStats(ctx context.Context, stats state.RunStats)
 	AppendLog(ctx context.Context, entry state.LogEvent)
 	UpdateJobs(ctx context.Context, jobs []state.JobSummary)
+	UpdateInventory(ctx context.Context, inv state.ServerInventory)
 	Close()
 }
 
@@ -40,6 +41,9 @@ func (NoopPublisher) AppendLog(context.Context, state.LogEvent) {}
 
 // UpdateJobs implements Publisher.
 func (NoopPublisher) UpdateJobs(context.Context, []state.JobSummary) {}
+
+// UpdateInventory implements Publisher.
+func (NoopPublisher) UpdateInventory(context.Context, state.ServerInventory) {}
 
 // Close implements Publisher.
 func (NoopPublisher) Close() {}
