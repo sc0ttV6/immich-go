@@ -317,13 +317,13 @@ func renderDiscoveryCard(stats state.RunStats, width int, theme services.Theme) 
 	title := lipgloss.NewStyle().Bold(true).Underline(true).Render("Source discovery:")
 	lines := []string{
 		title,
-		fmt.Sprintf("Images         %4d  %s", imagesCount, formatBytes(imagesSize)),
-		fmt.Sprintf("Videos         %4d  %s", videosCount, formatBytes(videosSize)),
+		fmt.Sprintf("Images             %4d  %s", imagesCount, formatBytes(imagesSize)),
+		fmt.Sprintf("Videos             %4d  %s", videosCount, formatBytes(videosSize)),
 		"",
-		fmt.Sprintf("Duplicates     %4d  %s", 0, "0 B"),
-		fmt.Sprintf("On server      %4d  %s", 0, "0 B"),
-		fmt.Sprintf("Filtered       %4d  %s", stats.Discarded, formatBytes(stats.DiscardedBytes)),
-		fmt.Sprintf("Banned         %4d  %s", 0, "0 B"),
+		fmt.Sprintf("Same in source     %4d  %s", 0, "0 B"),
+		fmt.Sprintf("Same on the server %4d  %s", 0, "0 B"),
+		fmt.Sprintf("Filtered           %4d  %s", stats.Discarded, formatBytes(stats.DiscardedBytes)),
+		fmt.Sprintf("Banned             %4d  %s", 0, "0 B"),
 	}
 	content := strings.Join(lines, "\n")
 	return lipgloss.NewStyle().Width(width).Render(content)

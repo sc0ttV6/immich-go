@@ -353,7 +353,7 @@ func (uc *UpCmd) handleGroup(ctx context.Context, g *assets.Group) error {
 		ids := []string{g.Assets[g.CoverIndex].ID}
 		for i, a := range g.Assets {
 			// Record stacking event
-			uc.app.FileProcessor().RecordNonAsset(ctx, g.Assets[i].File, 0, fileevent.ProcessedStacked)
+			uc.app.FileProcessor().LogEvent(ctx, g.Assets[i].File, 0, fileevent.ProcessedStacked)
 			if i != g.CoverIndex && a.ID != "" {
 				ids = append(ids, a.ID)
 			}
@@ -414,7 +414,7 @@ func (uc *UpCmd) handleAsset(ctx context.Context, a *assets.Asset) error {
 
 	case AlreadyProcessed: // SHA1 already processed
 		// Record as discarded - duplicate in input
-		uc.app.FileProcessor().RecordNonAsset(ctx, a.File, int64(a.FileSize), fileevent.DiscardedLocalDuplicate)
+		uc.app.FileProcessor().LogEvent(ctx, a.File, int64(a.FileSize), fileevent.DiscardedLocalDuplicate)
 		uc.app.FileProcessor().RecordAssetProcessed(ctx, a.File, int64(a.FileSize), fileevent.ProcessedMetadataUpdated)
 		uc.manageAssetAlbums(ctx, a.File, a.ID, a.Albums)
 		return nil
@@ -423,7 +423,7 @@ func (uc *UpCmd) handleAsset(ctx context.Context, a *assets.Asset) error {
 		a.ID = advice.ServerAsset.ID
 		a.Albums = append(a.Albums, advice.ServerAsset.Albums...)
 		// Record as processed - duplicate on server
-		uc.app.FileProcessor().RecordNonAsset(ctx, a.File, int64(a.FileSize), fileevent.DiscardedServerDuplicate)
+		uc.app.FileProcessor().LogEvent(ctx, a.File, int64(a.FileSize), fileevent.DiscardedServerDuplicate)
 		uc.app.FileProcessor().RecordAssetProcessed(ctx, a.File, int64(a.FileSize), fileevent.ProcessedMetadataUpdated)
 		uc.manageAssetAlbums(ctx, a.File, a.ID, a.Albums)
 

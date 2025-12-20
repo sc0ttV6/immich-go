@@ -137,9 +137,9 @@ func (fp *FileProcessor) RecordAssetError(ctx context.Context, file fshelper.FSA
 	fp.emitCounters()
 }
 
-// RecordNonAsset records a non-asset file (sidecar, metadata, etc.).
-// Only logged, not tracked in AssetTracker.
-func (fp *FileProcessor) RecordNonAsset(ctx context.Context, file fshelper.FSAndName, size int64, code fileevent.Code, args ...any) {
+// LogEvent records a file event without asset tracking.
+// Used for non-assets (sidecars, metadata, etc.) and informational events about assets.
+func (fp *FileProcessor) LogEvent(ctx context.Context, file fshelper.FSAndName, size int64, code fileevent.Code, args ...any) {
 	fp.logger.RecordWithSize(ctx, code, file, size, args...)
 	fp.emitEvent(ctx, code, file, size, attrsFromPairs(args...))
 }

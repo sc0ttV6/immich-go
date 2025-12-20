@@ -232,7 +232,7 @@ func TestEventHookCapturesAttributes(t *testing.T) {
 		capturedAlbum = attrs["album"]
 	})
 
-	fp.RecordNonAsset(ctx, file, 0, fileevent.ProcessedAlbumAdded, "album", "Vacation")
+	fp.LogEvent(ctx, file, 0, fileevent.ProcessedAlbumAdded, "album", "Vacation")
 
 	if capturedCode != fileevent.ProcessedAlbumAdded {
 		t.Fatalf("expected hook to capture ProcessedAlbumAdded, got %v", capturedCode)
@@ -245,7 +245,7 @@ func TestEventHookCapturesAttributes(t *testing.T) {
 	}
 }
 
-func TestRecordNonAsset(t *testing.T) {
+func TestLogEvent(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	tracker := assettracker.New()
 	recorder := fileevent.NewRecorder(logger)
@@ -255,7 +255,7 @@ func TestRecordNonAsset(t *testing.T) {
 	file := newTestFile("/test/metadata.json")
 
 	// Record non-asset file
-	fp.RecordNonAsset(ctx, file, 128, fileevent.DiscoveredSidecar)
+	fp.LogEvent(ctx, file, 128, fileevent.DiscoveredSidecar)
 
 	// Check tracker - should have nothing tracked
 	counters := fp.GetAssetCounters()
@@ -408,7 +408,7 @@ func TestGenerateReport(t *testing.T) {
 	fp.RecordAssetDiscovered(ctx, file1, 1024, fileevent.DiscoveredImage)
 	fp.RecordAssetProcessed(ctx, file1, 1024, fileevent.ProcessedUploadSuccess)
 	fp.RecordAssetDiscovered(ctx, file2, 2048, fileevent.DiscoveredVideo)
-	fp.RecordNonAsset(ctx, sidecar, 128, fileevent.DiscoveredSidecar)
+	fp.LogEvent(ctx, sidecar, 128, fileevent.DiscoveredSidecar)
 
 	// Generate report
 	report := fp.GenerateReport()
@@ -487,8 +487,8 @@ func TestCompleteWorkflow(t *testing.T) {
 	fp.RecordAssetDiscovered(ctx, image2, 2048000, fileevent.DiscoveredImage)
 	fp.RecordAssetDiscovered(ctx, video1, 5120000, fileevent.DiscoveredVideo)
 	fp.RecordAssetDiscardedImmediately(ctx, bannedImage, 100, fileevent.DiscardedBanned, "banned filename")
-	fp.RecordNonAsset(ctx, sidecar, 512, fileevent.DiscoveredSidecar)
-	fp.RecordNonAsset(ctx, banned, 50, fileevent.DiscoveredBanned, "reason", "banned filename")
+	fp.LogEvent(ctx, sidecar, 512, fileevent.DiscoveredSidecar)
+	fp.LogEvent(ctx, banned, 50, fileevent.DiscoveredBanned, "reason", "banned filename")
 
 	// 2. Process assets
 	fp.RecordAssetProcessed(ctx, image1, 1024000, fileevent.ProcessedUploadSuccess)
