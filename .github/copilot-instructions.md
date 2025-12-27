@@ -1,87 +1,321 @@
-You are helping me for the design. don't update the code if not explicitly requested
 
-Don't write reasoning documentation 
-    except is this is explicitly requested. Write it in the scratchpad folder.
+# GitHub Copilot Instructions – `immich-go` (Go)
 
-When implementing an immich end point, 
-    refer to the api specifications located at .github/immich-api-monitor/immich-openapi-specs-baseline.json
+## 1. Project Context
 
-Never commit the code by yourself.
-   prepare the commit message and ask for confirmation before 
+You are contributing to **`immich-go`**, an open-source **Go CLI tool** used to bulk upload, migrate, and archive personal media into an Immich server.
 
-## Release Notes Generation
+This project:
 
-When asked to generate release notes:
-1. Use the script: `./scripts/generate-release-notes.sh [version]`
-   - Example: `./scripts/generate-release-notes.sh v0.30.0`
-   - Without version, it defaults to "NEXT"
+* Handles large volumes of personal data
+* Is often used in automated or headless environments
+* Must remain predictable, safe, and backward compatible
 
-2. The script will:
-   - Find commits since the last stable release
-   - Generate a prompt file: `release-notes-prompt.txt`
-   - if the file: `docs/releases/release-notes-[version].md` already exists, it will be used as a base
-   - Create target file: `docs/releases/release-notes-[version].md`
+**Never assume user intent.**
+If a request is ambiguous, **ask for clarification before writing code**.
 
-3. Process the prompt with this chat to generate the final release notes
+---
 
-4. Release notes should be categorized as:
-   - ✨ New Features (user-visible functionality)
-   - 🚀 Improvements (enhancements to existing features)
-   - 🐛 Bug Fixes (fixes to existing functionality)
-   - 💥 Breaking Changes (changes requiring user action)
-   - 🔧 Internal Changes (refactoring, CI/CD, tests - only if significant)
+## 2. Go Programming Style (Mandatory)
 
-5. Guidelines:
-   - Remove technical prefixes (feat:, fix:, chore:, refactor:, doc:, e2e:, test:)
-   - Write from user's perspective
-   - Combine related commits
-   - Start with a brief, friendly introduction. Be concise and professional.
-   - Explain CLI changes, list concerned flags, add examples if needed
-   - Skip mean less commits (e.g., "update README", "fix typo")
-   - Skip purely internal changes unless they significantly impact users
-   
+Follow idiomatic Go strictly:
 
-## commit messages generation
-  - use conventional commit style
-  - the commit title should prioritize features that affects the user experience
-  - the commit details list other changes
-  - maintain a provisional change log in the folder scratchpad
-  - but newer commit scratchpad content
-  - only changes in the command line options are concidered as breaking change. The project is not about publish an API or a library.
+* Compatible with `gofmt`, `go vet`, and `golangci-lint`
+* Prefer simplicity and explicitness
+* Avoid unnecessary abstractions
+* One function, one responsibility
+* No dead or commented-out code
 
-## prepare a pull-request to merge with the develop branch
+### Naming
 
-- if the file: `docs/releases/release-notes-[version].md` already exists, it will be used as a base
-- use the git commits messages
-- use the provisional change log in the folder scratchpad if present 
-- the pull-request should be named: `feature: [feature]`
+* Clear, explicit English names
+* No generic suffixes (`Util`, `Helper`, `Common`)
+* Interfaces named after behavior (`Uploader`, `Source`, `Archiver`)
+* Short variable names only in tight scopes
 
-## prepare a pull-request to merge with the main branch
+### Errors
 
-- propose the new version using semantic versioning
-- be sure that the file `docs/releases/release-notes-[version].md` exists or generate it.
-- if the `docs/releases/release-notes-[NEXT].md` exists, it will be used as a base, and rename it with the new version number
-- the pull-request should be named: `release: [version]`
+* Always handle errors explicitly
+* Use contextual wrapping:
 
+  ```go
+  return fmt.Errorf("failed to parse capture date for %s: %w", path, err)
+  ```
+* `panic` only for unrecoverable programmer errors
 
+### Context & Concurrency
 
-## Development Conventions
+* Long-running or I/O-bound operations must accept `context.Context`
+* Ensure cancellation, no goroutine leaks, deterministic shutdown
 
--   **Branching:** The project follows a specific branching strategy.
-    -   `feature/*` and `bugfix/*` branches should be based on and merged into `develop`.
-    -   `hotfix/*` branches should be based on and merged into `main`.
--   **Commits:** While not strictly enforced, it's good practice to follow conventional commit message formats.
--   **Dependencies:** Manage dependencies using Go modules (`go.mod` and `go.sum`).
--   **Contributing:** Refer to `CONTRIBUTING.md` for more detailed contribution guidelines.
+---
 
+## 3. Testing (Non-Negotiable)
 
-## Working on a new feature
+### Rules
 
-- Storyboarding and design discussions should be documented in the `scratchpad/` directory.
-- Implementation progress and summaries should also be documented in the `scratchpad/` directory.   
-- propose unit tests for testing tricky aspects of the feature
-- propose e2e tests:
-    - explain the case to be tested: 
-    - propose a description of test data needed for the test. 
-    - I'll provide the data and files for the test
-    - ensure that the entire upload process works as expected, including file discovery, processing, and uploading to the Immich server.
+* Every new feature must include tests
+* Every change must preserve or improve test coverage
+* If tests are missing or insufficient, write them
+
+### Expectations
+
+* Prefer unit tests using `testing`
+* Deterministic, fast, isolated
+* No real network or filesystem unless abstracted
+
+### immich-go Focus Areas
+
+* CLI flags and config parsing
+* Folder → album mapping logic
+* Timezone and EXIF date handling
+* Dry-run behavior (must never mutate state)
+* Partial failures and error propagation
+
+Copilot must **actively identify missing test cases**.
+
+---
+
+## 4. Documentation (Required)
+
+### New Code
+
+All exported code must include GoDoc explaining:
+
+* Purpose
+* Behavior
+* Non-obvious constraints or side effects
+
+### Legacy Code
+
+When touching existing code:
+
+* Update or add documentation if missing or inaccurate
+* Align comments with actual behavior
+
+---
+
+## 5. Dependencies: Standard Library First
+
+* Always prefer Go standard library
+* External dependencies require explicit justification
+* No convenience or overlapping dependencies
+
+---
+
+## 6. Large Changes: Plan First
+
+For any non-trivial change, Copilot **must propose a plan before coding**.
+
+### Required Plan
+
+1. Functional goal
+2. Assumptions and open questions
+3. Step-by-step implementation plan
+4. Impact analysis:
+
+   * CLI compatibility
+   * workflows
+   * tests
+   * documentation
+
+No code until the plan is acknowledged.
+
+---
+
+## 7. Scope Control, Clarification, and Decomposition
+
+* Challenge unclear or risky requests
+* Ask clarifying questions early
+* Never silently assume requirements
+* Break ambitious goals into:
+
+  * small
+  * reviewable
+  * reversible steps
+
+Each step must have:
+
+* a clear objective
+* validation criteria
+
+---
+
+## 8. Legacy Code Refactoring (Strictly Controlled)
+
+Refactoring in `immich-go` is **intentional, incremental, and planned**.
+
+### Refactoring Goals
+
+* Reduce technical debt
+* Improve readability and testability
+* Align legacy code with current standards
+* Eliminate hidden coupling and side effects
+
+### Refactoring Rules
+
+* No behavior change without explicit agreement
+* No mixed feature + refactor work
+* Backward compatibility must be preserved
+
+### Mandatory Refactoring Plan
+
+1. Current state analysis
+2. Target state
+3. Step-by-step refactor sequence
+4. Safety measures (tests first)
+
+### Execution
+
+* Prefer multiple small PRs
+* Each step must compile and pass tests
+* Minimal diff noise
+
+### Challenging Over-Ambitious Refactors
+
+Copilot must push back and propose safer, incremental alternatives.
+
+---
+
+## 9. Mergeability and Branch Hygiene
+
+Changes must be:
+
+* Easy to review
+* Easy to merge into `main` / `develop`
+* Designed to minimize long-lived divergence
+
+Rules:
+
+* Prefer incremental PRs
+* Avoid large rebases
+* Favor additive over destructive changes
+
+---
+
+## 10. Conventional Commits & Change Communication (Mandatory)
+
+### 10.1 Commit Messages
+
+All commits **must follow Conventional Commits**:
+
+```
+<type>(<scope>): <short, imperative summary>
+```
+
+#### Allowed Types
+
+* `feat` – new user-facing feature
+* `fix` – bug fix
+* `refactor` – behavior-preserving refactor
+* `test` – tests only
+* `docs` – documentation only
+* `chore` – tooling, CI, maintenance
+
+#### Rules
+
+* Keep commit messages **short and explicit**
+* One logical change per commit
+* Avoid vague messages (`update stuff`, `misc fixes`)
+* Use imperative mood
+
+#### Examples
+
+```
+feat(upload): support album path joiner flag
+fix(exif): handle timezone-less timestamps correctly
+refactor(cli): isolate flag parsing from execution
+test(upload): cover dry-run behavior on failures
+docs(cli): document new --folder-as-tags option
+```
+
+---
+
+### 10.2 User-Facing Changes (Required)
+
+If a commit introduces:
+
+* a CLI flag change
+* a new feature
+* a behavior change
+* a breaking or potentially surprising change
+
+👉 **The commit message and PR description must explicitly mention it.**
+
+Example:
+
+```
+feat(cli): add --date-range flag
+
+User impact:
+- Allows restricting imports to a date interval
+- No change to default behavior
+```
+
+---
+
+### 10.3 Pull Request Descriptions
+
+PR descriptions must be:
+
+* Lean
+* Informative
+* User-oriented
+
+#### Recommended PR Structure
+
+```
+### Summary
+Short explanation of what and why.
+
+### User-facing changes
+- New flag: --xyz
+- Behavior change: ...
+
+### Technical notes
+- Tests added for ...
+- Refactor limited to ...
+
+### Compatibility
+- Backward compatible / Breaking change (explain)
+```
+
+Avoid long prose. Favor **clear bullet points**.
+
+---
+
+## 11. Progress Tracking and Plan Updates
+
+For multi-step work:
+
+* Maintain a task list
+* Track completed, pending, and blocked steps
+* Update the plan when scope or constraints change
+
+---
+
+## 12. immich-go Core Principles
+
+When in doubt, prioritize:
+
+1. Data safety
+2. Predictable behavior
+3. Explicit user intent
+4. Backward compatibility
+5. Testability
+6. Easy review and merge
+7. Clarity over cleverness
+
+---
+
+## 13. Final Rule
+
+If you must choose between:
+
+* speed
+* cleverness
+* correctness
+* mergeability
+
+👉 **Always choose correctness, clarity, and easy mergeability.**
+
